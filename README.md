@@ -26,6 +26,7 @@ It is the matching Home Assistant side for the modern **HASS.Agent .NET10** Wind
 - Notification action triggers for automations
 - Notification action event entity for newer Home Assistant automation workflows
 - Button entities for Windows commands: lock, sleep, monitor off, volume, shutdown, restart, restart cancel
+- Custom command button entities: user-defined programs or PowerShell scripts advertised by the Windows client
 - System sensor entities for Windows machine state (CPU, memory, disk, battery, network, session, etc.)
 - Custom sensor entities: process running, service status, disk free, built-in attribute extraction
 - Dynamic sensor handling based on what the Windows client advertises
@@ -237,6 +238,10 @@ When using the HA API (WebSocket) transport, the Windows client fires events int
 > The `main` branch (v10.0.0+) is designed exclusively for **HASS.Agent .NET10** and is not backwards compatible with the old client.
 
 ## Changelog
+
+### 10.6.0
+
+- Added **custom command buttons**: programs and PowerShell scripts you define in the Windows client (10.6.0+) now appear as button entities. The client advertises only each command's id and name; pressing the button asks the client to run the command you defined — Home Assistant never sends the underlying program or script. Buttons route to the tray app or the Windows service depending on where the command is enabled, and are removed automatically when the client stops advertising them.
 
 ### 10.5.0
 

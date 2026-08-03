@@ -65,6 +65,7 @@ SERVICE_STATUS_STORAGE_KEY = "_service_status"
 # every 30s; mark it offline if three in a row are missed.
 WS_AVAILABILITY_TIMEOUT = 90
 BUTTON_COMMANDS_STORAGE_KEY = "button_commands"
+CUSTOM_COMMANDS_STORAGE_KEY = "custom_button_commands"
 CUSTOM_SENSORS_STORAGE_KEY = "custom_sensors"
 STANDARD_SENSORS_STORAGE_KEY = "standard_sensors"
 SYSTEM_COMMANDS = {
@@ -194,6 +195,50 @@ def _available_button_commands(apis: dict[str, Any], service_status: dict[str, A
     )
 
 
+def _normalize_custom_commands(commands: Any) -> tuple[tuple[str, str], ...]:
+    """Return a stable tuple of (id, name) custom command descriptors."""
+    if not isinstance(commands, list):
+        return ()
+
+    normalized: dict[str, str] = {}
+    for command in commands:
+        if not isinstance(command, dict):
+            continue
+
+        command_id = command.get("id")
+        name = command.get("name")
+        if not isinstance(command_id, str) or not command_id:
+            continue
+        if not isinstance(name, str) or not name.strip():
+            continue
+
+        normalized[command_id] = name.strip()
+
+    return tuple(sorted(normalized.items(), key=lambda item: item[0]))
+
+
+def _available_custom_commands(
+    apis: dict[str, Any], service_status: dict[str, Any]
+) -> tuple[tuple[str, str, bool, bool], ...]:
+    """Return custom commands with which transports (tray/service) can run them."""
+    tray = dict(_normalize_custom_commands(apis.get("custom_commands"))) if apis.get("buttons") is True else {}
+    service = (
+        dict(_normalize_custom_commands(service_status.get("custom_commands")))
+        if service_status.get("online") is True
+        else {}
+    )
+
+    merged: dict[str, tuple[str, bool, bool]] = {}
+    for command_id in {*tray, *service}:
+        name = tray.get(command_id) or service.get(command_id) or command_id
+        merged[command_id] = (name, command_id in tray, command_id in service)
+
+    return tuple(
+        (command_id, name, in_tray, in_service)
+        for command_id, (name, in_tray, in_service) in sorted(merged.items(), key=lambda item: item[0])
+    )
+
+
 def _normalize_custom_sensors(sensors: Any) -> tuple[tuple[str, str, str, str, str | None, str | None, str | None, str | None], ...]:
     """Return a stable tuple of custom sensor descriptors."""
     if not isinstance(sensors, list):
@@ -295,10 +340,16 @@ def _standard_sensor_unique_id(entry: ConfigEntry, sensor_key: str) -> str:
     return f"sensor_{entry.unique_id}_{sensor_key}"
 
 
+def _custom_command_unique_id(entry: ConfigEntry, command_id: str) -> str:
+    """Return the unique ID used by a custom command button entity."""
+    return f"button_{entry.unique_id}_customcmd_{command_id}"
+
+
 def _async_remove_inactive_button_entities(
     hass: HomeAssistant,
     entry: ConfigEntry,
     active_commands: set[str],
+    active_custom_ids: set[str],
 ) -> None:
     """Remove disabled command button entities from the entity registry."""
     entity_registry = er.async_get(hass)
@@ -311,6 +362,14 @@ def _async_remove_inactive_button_entities(
         )
         if entity_id is not None:
             entity_registry.async_remove(entity_id)
+
+    custom_prefix = f"button_{entry.unique_id}_customcmd_"
+    for entity in list(er.async_entries_for_config_entry(entity_registry, entry.entry_id)):
+        if entity.domain != Platform.BUTTON.value or not entity.unique_id.startswith(custom_prefix):
+            continue
+        command_id = entity.unique_id.removeprefix(custom_prefix)
+        if command_id not in active_custom_ids:
+            entity_registry.async_remove(entity.entity_id)
 
 
 def _async_remove_inactive_custom_sensor_entities(
@@ -357,16 +416,24 @@ async def _async_update_button_platform(
     should_load: bool,
     device_name: str,
     command_signature: tuple[tuple[str, str, str | None], ...],
+    custom_command_signature: tuple[tuple[str, str, bool, bool], ...],
 ) -> None:
     """Load, unload, or reload button entities when the command list changes."""
     entry_data = hass.data[DOMAIN][entry.entry_id]
     loaded = entry_data["loaded"]
     is_loaded = loaded.get("button", False)
     previous_signature = tuple(entry_data.get(BUTTON_COMMANDS_STORAGE_KEY, ()))
+    previous_custom_signature = tuple(entry_data.get(CUSTOM_COMMANDS_STORAGE_KEY, ()))
     active_commands = {command[0] for command in command_signature}
+    active_custom_ids = {command[0] for command in custom_command_signature}
 
-    if should_load and is_loaded and previous_signature == command_signature:
-        _async_remove_inactive_button_entities(hass, entry, active_commands)
+    if (
+        should_load
+        and is_loaded
+        and previous_signature == command_signature
+        and previous_custom_signature == custom_command_signature
+    ):
+        _async_remove_inactive_button_entities(hass, entry, active_commands, active_custom_ids)
         return
 
     if is_loaded:
@@ -379,15 +446,17 @@ async def _async_update_button_platform(
         loaded["button"] = False
         await hass.async_block_till_done()
 
-    _async_remove_inactive_button_entities(hass, entry, active_commands)
+    _async_remove_inactive_button_entities(hass, entry, active_commands, active_custom_ids)
     entry_data[BUTTON_COMMANDS_STORAGE_KEY] = command_signature
+    entry_data[CUSTOM_COMMANDS_STORAGE_KEY] = custom_command_signature
 
     if should_load:
         _logger.debug(
-            "loading button for device: %s [%s] commands=%s",
+            "loading button for device: %s [%s] commands=%s custom=%s",
             device_name,
             entry.unique_id,
             command_signature,
+            custom_command_signature,
         )
         await hass.config_entries.async_forward_entry_setups(entry, [Platform.BUTTON])
         loaded["button"] = True
@@ -466,7 +535,8 @@ async def handle_apis_changed(
         custom_sensors = _available_custom_sensors(apis, service_status)
         standard_sensors = _available_standard_sensors(apis, service_status)
         button_commands = _available_button_commands(apis, service_status)
-        buttons = bool(button_commands) and entry.data.get(CONF_URL) is None
+        custom_commands = _available_custom_commands(apis, service_status)
+        buttons = bool(button_commands or custom_commands) and entry.data.get(CONF_URL) is None
 
         await _async_update_platform(
             hass,
@@ -506,6 +576,7 @@ async def handle_apis_changed(
             bool(buttons),
             device_name,
             button_commands,
+            custom_commands,
         )
         async_dispatcher_send(hass, _button_update_signal(entry.entry_id))
 
@@ -781,6 +852,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             previous_system_sensors = bool(entry_data.get("service", {}).get("system_sensors"))
             previous_custom_sensors = _normalize_custom_sensors(entry_data.get("service", {}).get("custom_sensors"))
             previous_standard_sensors = _normalize_standard_sensors(entry_data.get("service", {}).get("standard_sensors"))
+            previous_custom_commands = _normalize_custom_commands(entry_data.get("service", {}).get("custom_commands"))
             entry_data["service"] = payload
             hass.data[DOMAIN].setdefault(SERVICE_STATUS_STORAGE_KEY, {})[device_name] = payload
 
@@ -789,12 +861,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             system_sensors = payload.get("system_sensors") is True
             custom_sensors = _normalize_custom_sensors(payload.get("custom_sensors"))
             standard_sensors = _normalize_standard_sensors(payload.get("standard_sensors"))
+            custom_commands = _normalize_custom_commands(payload.get("custom_commands"))
             if (
                 previous_online != online
                 or previous_commands != commands
                 or previous_system_sensors != system_sensors
                 or previous_custom_sensors != custom_sensors
                 or previous_standard_sensors != standard_sensors
+                or previous_custom_commands != custom_commands
             ):
                 cached_apis = entry_data.get("apis", {})
                 hass.async_create_background_task(
