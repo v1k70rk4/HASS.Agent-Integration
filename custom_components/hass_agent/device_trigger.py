@@ -1,24 +1,18 @@
 """Provides device triggers for HASS.Agent."""
 from __future__ import annotations
+
 from typing import Any
 
 import voluptuous as vol
-
-from homeassistant.helpers.trigger import (
-    TriggerActionType,
-    TriggerInfo,
-)
 from homeassistant.components.device_automation import DEVICE_TRIGGER_BASE_SCHEMA
 from homeassistant.components.homeassistant.triggers import event as event_trigger
-from homeassistant.components.mqtt.device_trigger import mqtt_trigger
-
 from homeassistant.components.mqtt.const import (
     CONF_ENCODING,
+    CONF_PAYLOAD,
     CONF_QOS,
     CONF_TOPIC,
-    CONF_PAYLOAD,
 )
-from homeassistant.components.mqtt.device_trigger import DEFAULT_ENCODING
+from homeassistant.components.mqtt.device_trigger import DEFAULT_ENCODING, mqtt_trigger
 from homeassistant.const import (
     CONF_DEVICE_ID,
     CONF_DOMAIN,
@@ -29,10 +23,13 @@ from homeassistant.const import (
 )
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.trigger import (
+    TriggerActionType,
+    TriggerInfo,
+)
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, CONF_ACTION, CONF_DEVICE_NAME, EVENT_NOTIFICATION_ACTIONS
-
+from .const import CONF_ACTION, CONF_DEVICE_NAME, DOMAIN, EVENT_NOTIFICATION_ACTIONS
 
 TRIGGER_TYPES = {"notifications_mqtt", "notifications_event"}
 

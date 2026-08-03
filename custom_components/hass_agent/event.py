@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.components.mqtt.models import ReceiveMessage
@@ -56,7 +56,7 @@ async def async_setup_entry(
 class HassAgentNotificationActionEventEntity(HassAgentAvailableEntity, EventEntity):
     """HASS.Agent notification action event entity."""
 
-    _attr_event_types = [EVENT_TYPE_ACTION]
+    _attr_event_types: ClassVar[list[str]] = [EVENT_TYPE_ACTION]
     _attr_device_class = EventDeviceClass.BUTTON
     _attr_has_entity_name = True
     _attr_translation_key = "notification_action"

@@ -17,11 +17,11 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    DOMAIN,
     CONF_API_KEY,
     CONF_DEFAULT_NOTIFICATION_TITLE,
     CONF_HA_API,
     CONF_ORIGINAL_DEVICE_NAME,
+    DOMAIN,
 )
 
 _logger = logging.getLogger(__name__)

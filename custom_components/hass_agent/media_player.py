@@ -8,36 +8,36 @@ from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.components import media_source, mqtt
-from homeassistant.components.media_source import BrowseMediaSource, RootBrowseMediaSource
-from homeassistant.components.mqtt.models import ReceiveMessage
+from homeassistant.components.media_player import (
+    MediaPlayerDeviceClass,
+    MediaPlayerEntity,
+    MediaPlayerEntityFeature,
+)
 from homeassistant.components.media_player.browse_media import (
     BrowseMedia,
     async_process_play_media_url,
 )
-from homeassistant.helpers import device_registry as dr
-
-from .const import DOMAIN, CONF_ORIGINAL_DEVICE_NAME
-from .entity import availability_signal
-
+from homeassistant.components.media_player.const import MediaPlayerState, MediaType
+from homeassistant.components.media_source import (
+    BrowseMediaSource,
+    RootBrowseMediaSource,
+)
+from homeassistant.components.mqtt.models import ReceiveMessage
 from homeassistant.components.mqtt.subscription import (
     async_prepare_subscribe_topics,
     async_subscribe_topics,
     async_unsubscribe_topics,
 )
 from homeassistant.config_entries import ConfigEntry
-
-from homeassistant.components.media_player import (
-    MediaPlayerDeviceClass,
-    MediaPlayerEntity,
-    MediaPlayerEntityFeature,
-)
-
-from homeassistant.components.media_player.const import MediaPlayerState, MediaType
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
+
+from .const import CONF_ORIGINAL_DEVICE_NAME, DOMAIN
+from .entity import availability_signal
 
 _logger = logging.getLogger(__name__)
 
@@ -193,7 +193,7 @@ class HassAgentMediaPlayerDevice(MediaPlayerEntity):
 
         try:
             thumbnail = base64.b64decode(thumbnail_b64) if isinstance(thumbnail_b64, str) else thumbnail_b64
-        except Exception:
+        except Exception:  # noqa: BLE001 - any decode failure just skips the thumbnail
             return
 
         thumbnail_hash = hashlib.sha256(thumbnail).hexdigest()

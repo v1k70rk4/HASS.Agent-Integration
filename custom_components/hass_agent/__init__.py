@@ -6,23 +6,24 @@ import json
 import logging
 from typing import Any
 
-from aiohttp import ClientError, ClientTimeout
-
 import voluptuous as vol
+from aiohttp import ClientError, ClientTimeout
 from homeassistant.components import mqtt, persistent_notification
-from homeassistant.components.notify.const import (
-    ATTR_DATA,
-    ATTR_MESSAGE,
-    ATTR_TITLE,
-    DOMAIN as NOTIFY_DOMAIN,
-)
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.mqtt.models import ReceiveMessage
 from homeassistant.components.mqtt.subscription import (
     async_prepare_subscribe_topics,
     async_subscribe_topics,
     async_unsubscribe_topics,
 )
+from homeassistant.components.notify.const import (
+    ATTR_DATA,
+    ATTR_MESSAGE,
+    ATTR_TITLE,
+)
+from homeassistant.components.notify.const import (
+    DOMAIN as NOTIFY_DOMAIN,
+)
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_URL, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
@@ -37,8 +38,8 @@ from homeassistant.helpers.issue_registry import async_delete_issue
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
-    CONF_COMMENT,
     CONF_COMMAND,
+    CONF_COMMENT,
     CONF_DEVICE_NAME,
     CONF_FORCE,
     CONF_HA_API,
