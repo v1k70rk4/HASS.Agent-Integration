@@ -8,6 +8,8 @@ This integration exposes a Windows HASS.Agent device as Home Assistant entities.
 
 It is the matching Home Assistant side for the modern **HASS.Agent .NET10** Windows client.
 
+> ⭐ **Enjoying it?** Please star this repo — and the [Windows app](https://github.com/v1k70rk4/HASS.Agent.NET10) too. It helps others find the project and keeps it going!
+
 ---
 
 > **Important**: This integration (v10.0.0+) requires **[HASS.Agent .NET10](https://github.com/v1k70rk4/HASS.Agent)** as the Windows client. The older pre-.NET10 HASS.Agent client is **not compatible** with this version.
