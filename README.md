@@ -46,22 +46,30 @@ It is the matching Home Assistant side for the modern **HASS.Agent .NET10** Wind
 | HASS.Agent .NET10 (Windows client) | 10.2.0 |
 | MQTT broker (recommended) | Mosquitto or any MQTT 3.1.1+ broker |
 
-HACS is required when installing through the custom repository flow.
+HACS is required for installation. This integration is available in the **HACS default store**, so no custom repository needs to be added.
 
 MQTT is recommended for full functionality. Alternatively, HA API (WebSocket) provides nearly the same features without requiring an MQTT broker. The Local HTTP API setup supports notifications only.
 
 ## Installation
 
-1. Open HACS in Home Assistant.
-2. Add this repository as a custom integration repository:
+This integration is in the **HACS default store** — no custom repository needed.
 
-   ```text
-   https://github.com/v1k70rk4/HASS.Agent.NET10-Integration
-   ```
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=v1k70rk4&repository=HASS.Agent.NET10-Integration&category=integration)
 
-3. Install **HASS.Agent Integration** from HACS.
-4. Restart Home Assistant.
-5. The device appears automatically if MQTT is enabled in the Windows client. If using HA API (WebSocket) only, the device registers when the Windows client connects. For Local HTTP API, add the device manually from **Settings > Devices & services > Add integration > HASS.Agent**.
+1. Open **HACS** and search for **HASS.Agent** — or click the button above.
+2. **Download** the integration.
+3. **Restart** Home Assistant.
+4. **Add the integration** — click the button below (or go to **Settings → Devices & services → Add integration → HASS.Agent**):
+
+   [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hass_agent)
+
+   With MQTT enabled in the Windows client the device also appears automatically; over the HA API (WebSocket) it registers when the client connects. For the Local HTTP API you always add it manually here.
+
+<details>
+<summary>Manual install (custom repository fallback)</summary>
+
+If the integration isn't showing in your HACS yet, add it as a custom repository: **HACS → ⋮ menu → Custom repositories**, URL `https://github.com/v1k70rk4/HASS.Agent.NET10-Integration`, category **Integration**.
+</details>
 
 If another HASS.Agent integration is already installed, remove it before installing this one, then restart Home Assistant.
 
