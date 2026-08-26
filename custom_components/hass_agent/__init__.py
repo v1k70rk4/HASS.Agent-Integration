@@ -613,6 +613,29 @@ def _register_ws_listeners(hass: HomeAssistant, entry: ConfigEntry) -> list:
         )
 
     @callback
+    def _ws_service_update(event) -> None:
+        """The system service announcing itself over the HA API transport.
+
+        The WebSocket has no per-role topics, so the service publishes its status as
+        its own event. Stored exactly like the MQTT service topic, so the existing
+        merge of app and service capabilities works the same on both transports.
+        """
+        data = event.data
+        if data.get("serial_number") != entry.unique_id:
+            return
+        status = data.get("status")
+        if not isinstance(status, dict):
+            return
+
+        entry_data = hass.data[DOMAIN][entry.entry_id]
+        entry_data["service"] = status
+        hass.data[DOMAIN].setdefault(SERVICE_STATUS_STORAGE_KEY, {})[entry.title] = status
+        hass.async_create_background_task(
+            handle_apis_changed(hass, entry, entry_data.get("apis", {})),
+            "hass.agent-ws-service",
+        )
+
+    @callback
     def _ws_sensor_update(event) -> None:
         data = event.data
         if data.get("serial_number") != entry.unique_id:
@@ -710,6 +733,7 @@ def _register_ws_listeners(hass: HomeAssistant, entry: ConfigEntry) -> list:
 
     return [
         hass.bus.async_listen("hass_agent_device_update", _ws_device_update),
+        hass.bus.async_listen("hass_agent_service_update", _ws_service_update),
         hass.bus.async_listen("hass_agent_sensor_update", _ws_sensor_update),
         hass.bus.async_listen("hass_agent_media_update", _ws_media_update),
         hass.bus.async_listen("hass_agent_media_thumbnail", _ws_media_thumbnail),

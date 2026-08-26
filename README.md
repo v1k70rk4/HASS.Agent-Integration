@@ -45,7 +45,7 @@ It is the matching Home Assistant side for the modern **HASS.Agent .NET10** Wind
 | Component | Minimum version |
 |-----------|----------------|
 | Home Assistant | 2026.6.0 |
-| HASS.Agent .NET10 (Windows client) | 10.2.0 |
+| HASS.Agent .NET10 (Windows client) | 10.2.0 (10.6.5+ for the HA API service channel) |
 | MQTT broker (recommended) | Mosquitto or any MQTT 3.1.1+ broker |
 
 HACS is required for installation. This integration is available in the **HACS default store**, so no custom repository needs to be added.
@@ -99,13 +99,15 @@ Nearly all features work — notifications, media player, sensors, commands, upd
 - No retained state (sensor values are lost until the agent reconnects after a restart)
 - No Last Will (no automatic offline detection)
 - Media thumbnails are ~33% larger (base64 encoding)
-- No Windows service integration
 - HTTPS is required for remote access
+
+The Windows service takes part on this transport too (client 10.6.5+): it announces itself on its own event, and command buttons are routed to the app or the service exactly as they are over MQTT.
 
 The client communicates through Home Assistant's event bus:
 
 ```text
-hass_agent_device_update          # discovery + capabilities
+hass_agent_device_update          # discovery + capabilities (tray app)
+hass_agent_service_update         # Windows service status + capabilities
 hass_agent_sensor_update          # sensor values
 hass_agent_media_update           # media player state
 hass_agent_media_thumbnail        # media album art (base64)
@@ -248,6 +250,10 @@ When using the HA API (WebSocket) transport, the Windows client fires events int
 > The `main` branch (v10.0.0+) is designed exclusively for **HASS.Agent .NET10** and is not backwards compatible with the old client.
 
 ## Changelog
+
+### 10.6.5
+
+- Added a **service channel for the HA API (WebSocket) transport**. Over MQTT the tray app and the Windows service each announce what they can handle on their own topic, and this integration merges the two — the WebSocket had no equivalent, so the service had to announce itself as the app. It now has its own event, and button presses name the side they are meant for, so a command runs exactly once and on the right side even when the tray app is not running. Requires HASS.Agent .NET10 **10.6.5** or newer; older clients keep working as before.
 
 ### 10.6.0
 
