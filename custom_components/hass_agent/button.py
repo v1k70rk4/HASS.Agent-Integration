@@ -238,8 +238,10 @@ class HassAgentCommandButton(ButtonEntity):
 
         payload = self._build_payload()
 
+        use_service = self._can_use_service(self.entity_description.key)
+
         if not self.hass.data.get(DOMAIN, {}).get(self._entry_id, {}).get("ha_api_only", False):
-            topic = self._service_command_topic if self._can_use_service(self.entity_description.key) else self._command_topic
+            topic = self._service_command_topic if use_service else self._command_topic
 
             await mqtt.async_publish(
                 self.hass,
@@ -248,10 +250,13 @@ class HassAgentCommandButton(ButtonEntity):
                 qos=0,
                 retain=False,
             )
-        # Also fire on the event bus for WebSocket transport.
+        # Also fire on the event bus for WebSocket transport. MQTT picks a side by topic;
+        # over the WebSocket both the app and the service see the same event, so name the
+        # one that should act on it.
         self.hass.bus.async_fire("hass_agent_command", {
             "serial_number": self._serial_number,
             "command_type": "button_command",
+            "target": "service" if use_service else "app",
             "payload": payload,
         })
 
@@ -365,8 +370,10 @@ class HassAgentCustomCommandButton(ButtonEntity):
 
         payload = {"command": self._command_id}
 
+        use_service = self._can_use_service()
+
         if not self.hass.data.get(DOMAIN, {}).get(self._entry_id, {}).get("ha_api_only", False):
-            topic = self._service_command_topic if self._can_use_service() else self._command_topic
+            topic = self._service_command_topic if use_service else self._command_topic
             await mqtt.async_publish(
                 self.hass,
                 topic,
@@ -375,9 +382,11 @@ class HassAgentCustomCommandButton(ButtonEntity):
                 retain=False,
             )
 
+        # See the note on the built-in button: the WebSocket needs the target named.
         self.hass.bus.async_fire("hass_agent_command", {
             "serial_number": self._serial_number,
             "command_type": "button_command",
+            "target": "service" if use_service else "app",
             "payload": payload,
         })
 
