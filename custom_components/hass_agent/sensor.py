@@ -324,6 +324,20 @@ def _custom_sensor_descriptors(hass: HomeAssistant, entry: ConfigEntry) -> list[
     return sensors
 
 
+def _advertises(source: object, list_key: str, wanted: str, id_key: str) -> bool:
+    """Whether a side's discovery payload lists a sensor with this id."""
+    if not isinstance(source, dict) or source.get("system_sensors") is not True:
+        return False
+
+    entries = source.get(list_key)
+    if not isinstance(entries, list):
+        return False
+
+    return any(
+        isinstance(entry, dict) and entry.get(id_key) == wanted for entry in entries
+    )
+
+
 class HassAgentSystemSensor(HassAgentAvailableEntity, SensorEntity):
     """HASS.Agent system metric sensor."""
 
@@ -355,6 +369,22 @@ class HassAgentSystemSensor(HassAgentAvailableEntity, SensorEntity):
         self._listeners: dict[str, Any] = {}
         self._attr_extra_state_attributes = {}
         self._setup_availability(entry_id)
+
+    def _provider_online(self, entry_data: dict) -> bool | None:
+        """Available while a side that reports this sensor is running.
+
+        Sensors the tray app feeds go unavailable when it closes, even though the
+        service keeps the device itself alive — and the other way round.
+        """
+        key = self.entity_description.key
+        by_app = _advertises(entry_data.get("apis"), "standard_sensors", key, "key")
+        by_service = _advertises(entry_data.get("service"), "standard_sensors", key, "key")
+        if not by_app and not by_service:
+            return None
+
+        return (by_app and self._app_online(entry_data)) or (
+            by_service and self._service_online(entry_data)
+        )
 
     @callback
     def updated(self, message: ReceiveMessage) -> None:
@@ -499,6 +529,17 @@ class HassAgentCustomSensor(HassAgentAvailableEntity, SensorEntity):
         self._listeners: dict[str, Any] = {}
         self._attr_extra_state_attributes = {}
         self._setup_availability(entry_id)
+
+    def _provider_online(self, entry_data: dict) -> bool | None:
+        """Available while a side that reports this custom sensor is running."""
+        by_app = _advertises(entry_data.get("apis"), "custom_sensors", self._sensor_id, "id")
+        by_service = _advertises(entry_data.get("service"), "custom_sensors", self._sensor_id, "id")
+        if not by_app and not by_service:
+            return None
+
+        return (by_app and self._app_online(entry_data)) or (
+            by_service and self._service_online(entry_data)
+        )
 
     @callback
     def updated(self, message: ReceiveMessage) -> None:

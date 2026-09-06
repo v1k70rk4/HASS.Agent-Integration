@@ -361,7 +361,9 @@ class HassAgentMediaPlayerDevice(MediaPlayerEntity):
     def available(self):
         """Return if we're available"""
 
-        if not self.hass.data.get(DOMAIN, {}).get(self._entry_id, {}).get("available", True):
+        # Playback lives in the tray app, so this follows the tray app rather than the
+        # device: the service staying up does not make a media player available.
+        if not self.hass.data.get(DOMAIN, {}).get(self._entry_id, {}).get("app_online", True):
             return False
         diff = round(time.monotonic() - self._last_updated)
         return diff < MEDIA_PLAYER_AVAILABLE_TIMEOUT

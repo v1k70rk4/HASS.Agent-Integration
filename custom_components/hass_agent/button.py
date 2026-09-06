@@ -288,7 +288,13 @@ class HassAgentCommandButton(ButtonEntity):
         return _command_list_contains(commands, command)
 
     def _can_use_tray_app(self, command: str) -> bool:
-        apis = self.hass.data.get(DOMAIN, {}).get(self._entry_id, {}).get("apis", {})
+        entry_data = self.hass.data.get(DOMAIN, {}).get(self._entry_id, {})
+        # The tray app's discovery is retained, so it still lists commands after the
+        # app closes — only the live connection tells us it can actually run them.
+        if not entry_data.get("app_online", True):
+            return False
+
+        apis = entry_data.get("apis", {})
         if not isinstance(apis, dict) or apis.get("buttons") is not True:
             return False
 
@@ -397,7 +403,11 @@ class HassAgentCustomCommandButton(ButtonEntity):
         return self._command_id in _custom_command_ids(service_status.get("custom_commands"))
 
     def _can_use_tray_app(self) -> bool:
-        apis = self.hass.data.get(DOMAIN, {}).get(self._entry_id, {}).get("apis", {})
+        entry_data = self.hass.data.get(DOMAIN, {}).get(self._entry_id, {})
+        if not entry_data.get("app_online", True):
+            return False
+
+        apis = entry_data.get("apis", {})
         if not isinstance(apis, dict) or apis.get("buttons") is not True:
             return False
         return self._command_id in _custom_command_ids(apis.get("custom_commands"))
