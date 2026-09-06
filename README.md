@@ -253,6 +253,8 @@ When using the HA API (WebSocket) transport, the Windows client fires events int
 
 ### 10.6.6
 
+> 🚧 **Not released yet** — in testing. HACS will not offer this version until it is published.
+
 - **The tray app and the Windows service are now treated as two independent providers.** Previously only the tray app published the device's availability, so closing it (or logging out) turned *everything* unavailable — including sensors the service was still happily reporting. The device now stays reachable while either side is running, and each entity follows whichever side actually feeds it: tray-only entities (media player, active window, notifications) go **unavailable** instead of disappearing, and return as soon as it is back.
 - **A provider that stops no longer has its entities deleted.** Entity creation is now independent of whether the side that offers it happens to be running, so its entities stay in place and simply grey out. Turning a capability off in the Windows client still removes those entities, as before. Requires HASS.Agent .NET10 **10.6.6** or newer.
 
