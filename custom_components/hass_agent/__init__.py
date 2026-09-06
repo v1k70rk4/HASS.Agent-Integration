@@ -180,6 +180,26 @@ def _normalize_commands(commands: Any) -> tuple[tuple[str, str, str | None], ...
     )
 
 
+@callback
+def _refresh_availability(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Recompute device availability from both sides and tell the entities.
+
+    The tray app and the Windows service are separate providers. Either one being
+    alive means the device is reachable, so closing the tray app must not take the
+    service's sensors down with it. Entities that know which side feeds them refine
+    this further and grey out on their own.
+    """
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if entry_data is None:
+        return
+
+    app_online = bool(entry_data.get("app_online", True))
+    service_online = entry_data.get("service", {}).get("online") is True
+    available = app_online or service_online
+    entry_data["available"] = available
+    async_dispatcher_send(hass, availability_signal(entry.entry_id), available)
+
+
 def _available_button_commands(apis: dict[str, Any], service_status: dict[str, Any]) -> tuple[tuple[str, str, str | None], ...]:
     """Return commands currently handled by either the tray app or the system service."""
     commands: dict[str, tuple[str, str | None]] = {}
@@ -187,8 +207,9 @@ def _available_button_commands(apis: dict[str, Any], service_status: dict[str, A
     if apis.get("buttons") is True:
         commands.update({command[0]: (command[1], command[2]) for command in _normalize_commands(apis.get("commands"))})
 
-    if service_status.get("online") is True:
-        commands.update({command[0]: (command[1], command[2]) for command in _normalize_commands(service_status.get("commands"))})
+    # Not gated on the service being online: an offline service still says what it
+    # would handle, so its buttons stay in Home Assistant and simply go unavailable.
+    commands.update({command[0]: (command[1], command[2]) for command in _normalize_commands(service_status.get("commands"))})
 
     return tuple(
         (name, display_name, comment)
@@ -223,11 +244,7 @@ def _available_custom_commands(
 ) -> tuple[tuple[str, str, bool, bool], ...]:
     """Return custom commands with which transports (tray/service) can run them."""
     tray = dict(_normalize_custom_commands(apis.get("custom_commands"))) if apis.get("buttons") is True else {}
-    service = (
-        dict(_normalize_custom_commands(service_status.get("custom_commands")))
-        if service_status.get("online") is True
-        else {}
-    )
+    service = dict(_normalize_custom_commands(service_status.get("custom_commands")))
 
     merged: dict[str, tuple[str, bool, bool]] = {}
     for command_id in {*tray, *service}:
@@ -300,7 +317,7 @@ def _available_standard_sensors(apis: dict[str, Any], service_status: dict[str, 
         else {}
     )
 
-    if service_status.get("online") is True and service_status.get("system_sensors") is True:
+    if service_status.get("system_sensors") is True:
         sensors.update(dict(_normalize_standard_sensors(service_status.get("standard_sensors"))))
 
     return tuple(sorted(sensors.items(), key=lambda item: item[0]))
@@ -314,7 +331,7 @@ def _available_custom_sensors(apis: dict[str, Any], service_status: dict[str, An
         for sensor in _normalize_custom_sensors(apis.get("custom_sensors")):
             sensors[sensor[0]] = sensor
 
-    if service_status.get("online") is True and service_status.get("system_sensors") is True:
+    if service_status.get("system_sensors") is True:
         for sensor in _normalize_custom_sensors(service_status.get("custom_sensors")):
             sensors[sensor[0]] = sensor
 
@@ -529,9 +546,12 @@ async def handle_apis_changed(
         service_status = entry_data.get("service", {})
         if not isinstance(service_status, dict):
             service_status = {}
+        # Whether the sensor platform is loaded at all: again independent of who is
+        # currently running, so a stopped provider greys its sensors out rather than
+        # tearing the platform down.
         system_sensors = (
             apis.get("system_sensors", False)
-            or (service_status.get("online") is True and service_status.get("system_sensors") is True)
+            or service_status.get("system_sensors") is True
         ) and entry.data.get(CONF_URL) is None
         custom_sensors = _available_custom_sensors(apis, service_status)
         standard_sensors = _available_standard_sensors(apis, service_status)
@@ -630,6 +650,8 @@ def _register_ws_listeners(hass: HomeAssistant, entry: ConfigEntry) -> list:
         entry_data = hass.data[DOMAIN][entry.entry_id]
         entry_data["service"] = status
         hass.data[DOMAIN].setdefault(SERVICE_STATUS_STORAGE_KEY, {})[entry.title] = status
+        # The service going up or down changes whether the device is reachable at all.
+        _refresh_availability(hass, entry)
         hass.async_create_background_task(
             handle_apis_changed(hass, entry, entry_data.get("apis", {})),
             "hass.agent-ws-service",
@@ -710,21 +732,22 @@ def _register_ws_listeners(hass: HomeAssistant, entry: ConfigEntry) -> list:
             cancel()
             entry_data["availability_timeout"] = None
 
+        # The heartbeat only reports the tray app; the service has its own channel.
         if not online:
-            entry_data["available"] = False
-            async_dispatcher_send(hass, availability_signal(entry.entry_id), False)
+            entry_data["app_online"] = False
+            _refresh_availability(hass, entry)
             return
 
-        entry_data["available"] = True
-        async_dispatcher_send(hass, availability_signal(entry.entry_id), True)
+        entry_data["app_online"] = True
+        _refresh_availability(hass, entry)
 
         @callback
         def _mark_offline(_now) -> None:
             entry_data["availability_timeout"] = None
-            if not entry_data.get("available", True):
+            if not entry_data.get("app_online", True):
                 return
-            entry_data["available"] = False
-            async_dispatcher_send(hass, availability_signal(entry.entry_id), False)
+            entry_data["app_online"] = False
+            _refresh_availability(hass, entry)
 
         # No broker Last Will on the WebSocket transport: if heartbeats stop, go offline.
         entry_data["availability_timeout"] = async_call_later(
@@ -756,6 +779,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "internal_mqtt": {},
             "apis": {},
             "service": {},
+            "app_online": True,
             "available": True,
             "availability_timeout": None,
             BUTTON_COMMANDS_STORAGE_KEY: (),
@@ -880,6 +904,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             previous_custom_commands = _normalize_custom_commands(entry_data.get("service", {}).get("custom_commands"))
             entry_data["service"] = payload
             hass.data[DOMAIN].setdefault(SERVICE_STATUS_STORAGE_KEY, {})[device_name] = payload
+            # The service going up or down changes whether the device is reachable at all.
+            _refresh_availability(hass, entry)
 
             online = payload.get("online") is True
             commands = _normalize_commands(payload.get("commands"))
@@ -919,12 +945,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         @callback
         def availability_updated(message: ReceiveMessage) -> None:
+            # This topic is published by the tray app only, so it says nothing about
+            # the service — hence app_online rather than the device's availability.
             online = str(message.payload).strip().lower() == "online"
             entry_data = hass.data[DOMAIN].get(entry.entry_id)
             if entry_data is None:
                 return
-            entry_data["available"] = online
-            async_dispatcher_send(hass, availability_signal(entry.entry_id), online)
+            entry_data["app_online"] = online
+            _refresh_availability(hass, entry)
 
         sub_state = async_prepare_subscribe_topics(
             hass,

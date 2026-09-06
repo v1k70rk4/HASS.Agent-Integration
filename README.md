@@ -45,7 +45,7 @@ It is the matching Home Assistant side for the modern **HASS.Agent .NET10** Wind
 | Component | Minimum version |
 |-----------|----------------|
 | Home Assistant | 2026.6.0 |
-| HASS.Agent .NET10 (Windows client) | 10.2.0 (10.6.5+ for the HA API service channel) |
+| HASS.Agent .NET10 (Windows client) | 10.2.0 (10.6.6+ recommended) |
 | MQTT broker (recommended) | Mosquitto or any MQTT 3.1.1+ broker |
 
 HACS is required for installation. This integration is available in the **HACS default store**, so no custom repository needs to be added.
@@ -250,6 +250,11 @@ When using the HA API (WebSocket) transport, the Windows client fires events int
 > The `main` branch (v10.0.0+) is designed exclusively for **HASS.Agent .NET10** and is not backwards compatible with the old client.
 
 ## Changelog
+
+### 10.6.6
+
+- **The tray app and the Windows service are now treated as two independent providers.** Previously only the tray app published the device's availability, so closing it (or logging out) turned *everything* unavailable — including sensors the service was still happily reporting. The device now stays reachable while either side is running, and each entity follows whichever side actually feeds it: tray-only entities (media player, active window, notifications) go **unavailable** instead of disappearing, and return as soon as it is back.
+- **A provider that stops no longer has its entities deleted.** Entity creation is now independent of whether the side that offers it happens to be running, so its entities stay in place and simply grey out. Turning a capability off in the Windows client still removes those entities, as before. Requires HASS.Agent .NET10 **10.6.6** or newer.
 
 ### 10.6.5
 

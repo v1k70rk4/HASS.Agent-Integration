@@ -79,6 +79,10 @@ class HassAgentNotificationActionEventEntity(HassAgentAvailableEntity, EventEnti
         self._listeners: dict[str, Any] = {}
         self._setup_availability(entry.entry_id)
 
+    def _provider_online(self, entry_data: dict) -> bool | None:
+        """Notifications come from the tray app, so this follows the tray app alone."""
+        return self._app_online(entry_data)
+
     @callback
     def _handle_action_message(self, message: ReceiveMessage) -> None:
         """Handle a notification action MQTT message."""
